@@ -81,24 +81,30 @@ func (g *TicTacToeGame) MainGameProcessHook() {
 			break
 		}
 
-		g.NextRound()
-
-		g.PutChar(rand.Intn(3), rand.Intn(3), g.CurrentPlayer.Payload["game_char"].(string))
-		message := message.NewMessage(message.Debug, map[string]interface{}{
-			"round":          g.Round,
-			"current_player": g.CurrentPlayer.Id,
-			"board":          g.GetLastState(),
-		})
-
-		g.BroadcastMessage(message)
-
-		if g.CheckWin(g.CurrentPlayer.Payload["game_char"].(string)) {
-			g.BroadcastMessagef("PLAYER %s [%s] WON", g.CurrentPlayer.Id, g.CurrentPlayer.Payload["game_char"].(string))
-			break
-		}
-
-		time.Sleep(500 * time.Millisecond)
+		g.GameTick()
 	}
+}
+
+// A single Game tick
+func (g *TicTacToeGame) GameTick() {
+	g.NextRound()
+
+	g.PutChar(rand.Intn(3), rand.Intn(3), g.CurrentPlayer.Payload["game_char"].(string))
+	message := message.NewMessage(message.Debug, map[string]interface{}{
+		"round":          g.Round,
+		"current_player": g.CurrentPlayer.Id,
+		"board":          g.GetLastState(),
+	})
+
+	g.BroadcastMessage(message)
+
+	if g.CheckWin(g.CurrentPlayer.Payload["game_char"].(string)) {
+		g.BroadcastMessagef("PLAYER %s [%s] WON", g.CurrentPlayer.Id, g.CurrentPlayer.Payload["game_char"].(string))
+		g.Status = status.Finished // TODO: extract as method
+		return
+	}
+
+	time.Sleep(500 * time.Millisecond)
 }
 
 // Post tictactoe game hook

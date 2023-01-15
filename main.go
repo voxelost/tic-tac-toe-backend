@@ -10,7 +10,7 @@ import (
 	"github.com/gorilla/handlers"
 )
 
-func main() {
+func init() {
 	if os.Getenv("DEBUG") != "true" {
 		f, err := os.OpenFile("logfile.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
@@ -20,7 +20,9 @@ func main() {
 
 		log.SetOutput(f)
 	}
+}
 
+func main() {
 	GameServer := gameserver.NewGameServer(context.Background())
 
 	r := http.NewServeMux()

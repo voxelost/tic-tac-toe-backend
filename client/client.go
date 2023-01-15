@@ -28,22 +28,34 @@ func NewClient(ctx context.Context, conn *websocket.Conn) *Client {
 		Payload: make(map[string]interface{}),
 	}
 
-	c.Messenger = message.NewMessenger(c.ReceiveMessage)
-	c.Connection = connection.NewConnection(ctx, conn, c.ReceiveMessage, c.Invalidate)
+	c.Messenger = message.NewMessenger(c.ReceiveEventManagerMessage)
+	c.Connection = connection.NewConnection(ctx, conn, c.ReceiveConnectionMessage, c.Invalidate)
 	return c
 }
 
 // Receive a message from EventManager
-func (c *Client) ReceiveMessage(message *message.Message) {
-	log.Printf("Client %s received a message: %s\n", c.Id, message.Payload)
-	c.Connection.SendMessage(message)
+func (c *Client) ReceiveEventManagerMessage(message_ *message.Message) {
+	log.Printf("Client %s received a message from event manager: %s\n", c.Id, message_.Payload)
+	c.Connection.SendMessage(message_)
 }
 
+// Receive a connection from remote client
+func (c *Client) ReceiveConnectionMessage(message_ *message.Message) {
+	log.Printf("Client %s received a message from remote connection: %s\n", c.Id, message_.Payload)
+	message_.SetOrigin(message.NewOrigin(message.Client, &c.Id))
+
+	log.Printf("Forwarding to EM\n")
+	c.Messenger.SendToEventManager(message_)
+}
+
+// Invalidate a client
 func (c *Client) Invalidate() {
 	c.Destroy()
 	c.Valid = false
 }
 
+// Destroy a client. If they are in a game, cancel that game
+// TODO: refactor
 func (c *Client) Destroy() {
 	if c.CancelGame != nil {
 		c.CancelGame()

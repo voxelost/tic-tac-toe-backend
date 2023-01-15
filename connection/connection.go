@@ -50,9 +50,7 @@ func (c *Connection) WebsocketReadRoutine(ctx context.Context) {
 
 			switch messageType {
 			case websocket.TextMessage:
-				message := new(message.Message)
-				message.Unmarshal(p)
-				c.MessageReceiveCallback(message)
+				c.MessageReceiveCallback(message.NewMessageFromBytes(p))
 			case websocket.CloseMessage:
 				c.CancelCallback()
 				return

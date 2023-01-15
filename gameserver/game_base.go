@@ -49,8 +49,9 @@ func (gb *GameBase) ReceiveMessage(message *message.Message) {
 }
 
 // Broadcast given message to all of game's clients using message.Messenger
-func (gb *GameBase) BroadcastMessage(message *message.Message) {
-	gb.Messenger.SendToEventManager(message)
+func (gb *GameBase) BroadcastMessage(message_ *message.Message) {
+	message_.SetOrigin(message.NewOrigin(message.Game, &gb.Id))
+	gb.Messenger.SendToEventManager(message_)
 }
 
 // Broadcast given formatted message to all of game's clients using message.Messenger
