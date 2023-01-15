@@ -3,14 +3,14 @@ package message
 // possible Origins
 var (
 	Client = "client"
-	Game = "game"
+	Game   = "game"
 	Server = "server"
 )
 
 // Origin represents the entity that emmited a message
 type Origin struct {
 	Type string
-	Id *string
+	Id   *string
 }
 
 // Return new Origin object
