@@ -3,19 +3,20 @@ package gameserver
 import (
 	"context"
 	"main/client"
+	"main/utils"
 )
 
 type JobQueue chan GameProcess
 
 // GameQueue is the queue of games waiting for launch
 type GameQueue struct {
-	Queue JobQueue
+	utils.ModifiableQueue[GameProcess]
 }
 
 // Return new GameQueue
-func NewGameQueue() *GameQueue {
+func NewGameQueue(queueSize int) *GameQueue {
 	return &GameQueue{
-		Queue: make(JobQueue, 2048),
+		ModifiableQueue: *utils.NewModifiableQueue[GameProcess](queueSize),
 	}
 }
 
@@ -27,7 +28,11 @@ func (gq *GameQueue) TryRegisterGame(ctx context.Context, clientQueue *client.Cl
 		return false
 	}
 
-	gq.Queue <- NewTicTacToeGame(ctx, clients)
-
+	gq.Push(NewTicTacToeGame(ctx, clients))
 	return true
+}
+
+// Remove a game from the Queue.
+func (gq *GameQueue) UnregisterGame(game *GameBase) {
+	gq.Delete(game.GetId())
 }

@@ -2,63 +2,73 @@ package client
 
 import (
 	"context"
-	"log"
 	"main/connection"
 	"main/message"
+	"main/utils"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
 // Client struct represents a server client
 type Client struct {
 	*message.Messenger
-	Id         string
-	CancelGame context.CancelFunc
-	Connection *connection.Connection
-	Valid      bool // if the client is still connected // TODO: rethink as ClientStatus
-	Payload    map[string]interface{}
+	utils.ID
+
+	CancelGame       func()
+	RemoveFromServer func()
+	Valid            bool // if the client is still connected
+
+	connection *connection.Connection
 }
 
 // Return a new Client object
-func NewClient(ctx context.Context, conn *websocket.Conn) *Client {
+func NewClient(ctx context.Context, conn *websocket.Conn, destroy func(*Client)) *Client {
 	c := &Client{
-		Id:      uuid.New().String(),
-		Valid:   true,
-		Payload: make(map[string]interface{}),
+		ID:    *utils.NewId(),
+		Valid: true,
 	}
 
-	c.Messenger = message.NewMessenger(c.ReceiveEventManagerMessage)
-	c.Connection = connection.NewConnection(ctx, conn, c.ReceiveConnectionMessage, c.Invalidate)
+	c.Messenger = message.NewMessenger()
+	c.Messenger.SetEventManagerReceiveCallback(c.ReceiveEventManagerMessage)
+
+	c.RemoveFromServer = func() { destroy(c) }
+	c.connection = connection.NewConnection(ctx, c.GetId(), conn, c.ReceiveConnectionMessage, c.Invalidate)
 	return c
 }
 
 // Receive a message from EventManager
 func (c *Client) ReceiveEventManagerMessage(message_ *message.Message) {
-	log.Printf("Client %s received a message from event manager: %s\n", c.Id, message_.Payload)
-	c.Connection.SendMessage(message_)
+	c.connection.SendMessage(message_) // forward to remote Client
 }
 
 // Receive a connection from remote client
 func (c *Client) ReceiveConnectionMessage(message_ *message.Message) {
-	log.Printf("Client %s received a message from remote connection: %s\n", c.Id, message_.Payload)
-	message_.SetOrigin(message.NewOrigin(message.Client, &c.Id))
+	if message_ == nil {
+		return
+	}
 
-	log.Printf("Forwarding to EM\n")
-	c.Messenger.SendToEventManager(message_)
+	cId := c.GetId()
+	message_.SetOrigin(message.NewOrigin(message.Client, &cId))
+	c.Messenger.GetActiveCommunicator().SendToEventManager(message_) // forward to EventManager
 }
 
-// Invalidate a client
+// Invalidate a client. Calls to this function have to be idempotent
 func (c *Client) Invalidate() {
 	c.Destroy()
 	c.Valid = false
 }
 
-// Destroy a client. If they are in a game, cancel that game
-// TODO: refactor
+// Destroy a client. If they are in a game, cancel that game. Calls to this functions are idempotent
 func (c *Client) Destroy() {
 	if c.CancelGame != nil {
 		c.CancelGame()
 		c.CancelGame = nil
 	}
+
+	if c.RemoveFromServer != nil {
+		c.RemoveFromServer()
+		c.RemoveFromServer = nil
+	}
+
+	c.Messenger.UnsubFromAllEventManagers()
 }

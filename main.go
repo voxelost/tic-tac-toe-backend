@@ -15,6 +15,7 @@ func init() {
 		f, err := os.OpenFile("logfile.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
 			log.Fatalf("error opening file: %v", err)
+			return
 		}
 		defer f.Close()
 
@@ -24,7 +25,6 @@ func init() {
 
 func main() {
 	GameServer := gameserver.NewGameServer(context.Background())
-
 	r := http.NewServeMux()
 
 	// Only log requests to our admin dashboard to stdout

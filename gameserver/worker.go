@@ -1,19 +1,20 @@
 package gameserver
 
 import (
-	"github.com/google/uuid"
+	"main/utils"
 )
 
 // A worker takes a function func() from the JobQueue and runs it
 type Worker struct {
-	Id       string
-	JobQueue JobQueue
+	utils.ID
+	ActiveGame bool
+	JobQueue   *utils.ModifiableQueue[GameProcess]
 }
 
 // Return a new Worker object
-func NewWorker(jobQueue JobQueue) *Worker {
+func NewWorker(jobQueue *utils.ModifiableQueue[GameProcess]) *Worker {
 	return &Worker{
-		Id:       uuid.New().String(),
+		ID:       *utils.NewId(),
 		JobQueue: jobQueue,
 	}
 }
@@ -21,9 +22,12 @@ func NewWorker(jobQueue JobQueue) *Worker {
 // Start Worker process. The worker will take Jobs from the JobQueue and run them
 func (w *Worker) Start() {
 	for {
-		gameProcess := <-w.JobQueue
+		gameProcess := w.JobQueue.PopBlocking()
+
+		w.ActiveGame = true
 		gameProcess.PreGameHook()
 		gameProcess.MainGameProcessHook()
 		gameProcess.PostGameHook()
+		w.ActiveGame = false
 	}
 }

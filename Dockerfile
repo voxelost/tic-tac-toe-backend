@@ -4,4 +4,4 @@ WORKDIR /
 COPY . ./
 RUN go build .
 
-RUN ./main
+CMD ./main
