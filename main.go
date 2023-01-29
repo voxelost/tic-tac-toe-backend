@@ -26,6 +26,7 @@ func init() {
 func main() {
 	GameServer := gameserver.NewGameServer(context.Background())
 	r := http.NewServeMux()
+
 	// Only log requests to our admin dashboard to stdout
 	r.HandleFunc("/", GameServer.ListenAndServe)
 
