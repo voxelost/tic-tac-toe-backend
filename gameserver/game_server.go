@@ -55,6 +55,9 @@ func (gs *GameServer) ListenAndServe(w http.ResponseWriter, r *http.Request) {
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 	}
+	upgrader.CheckOrigin = func(r *http.Request) bool {
+		return true
+	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
