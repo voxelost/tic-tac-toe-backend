@@ -1,10 +1,15 @@
 package message
 
-import "main/utils"
+import (
+	"main/utils"
+	"sync"
+)
 
 // Struct EventManager represents an Event Manager responsible for receiving Events (Messages) and broadcasting them to
 // all subscribers
 type EventManager struct {
+	sync.Mutex
+
 	Subscribers map[utils.ID]*Messenger
 	Router      *EventManagerRouter
 	Origin      *Origin
@@ -26,12 +31,17 @@ func (em *EventManager) SubscribeMessenger(messenger *Messenger) {
 	communicator.SetEventManagerUnsubCallback(func() { em.UnsubscribeMessenger(messenger) })
 
 	messenger.PushCommunicator(communicator)
+
+	em.Lock()
+	defer em.Unlock()
 	em.Subscribers[messenger.GetId()] = messenger
 }
 
 // Unsubscribe a Messenger object from this EventManager
 func (em *EventManager) UnsubscribeMessenger(messenger *Messenger) {
 	if messenger != nil {
+		em.Lock()
+		defer em.Unlock()
 		delete(em.Subscribers, messenger.GetId())
 	}
 }
