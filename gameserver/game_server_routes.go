@@ -2,20 +2,9 @@ package gameserver
 
 import (
 	"context"
-	"fmt"
-	"main/chatmod"
 	"main/message"
+	"main/utils"
 )
-
-func (gs *GameServer) PrintClientDebug(message *message.Message) bool {
-	fmt.Printf("client: %s\n", message.Payload)
-	return true
-}
-
-func (gs *GameServer) PrintServerDebug(message *message.Message) bool {
-	fmt.Printf("server: %s\n", message.Payload)
-	return true
-}
 
 func (gs *GameServer) DumbForward(message *message.Message) bool {
 	return true
@@ -23,22 +12,12 @@ func (gs *GameServer) DumbForward(message *message.Message) bool {
 
 // Run a Client Message through a censoring middleware and broadcast it to all players
 func (gs *GameServer) BroadcastClientMessage(message *message.Message) bool {
-	defer func() {
-		if err := recover(); err != nil {
-			return // recover from bad client message
-		}
-	}()
-
-	censoredPayload, err := chatmod.CensorChatMesage(message.Payload.(string))
-	if err != nil {
+	preprocessedPayload, ok := utils.PreprocessChatPayload(message.Payload.(string))
+	if !ok {
 		return false
 	}
 
-	if len(censoredPayload) > 200 {
-		censoredPayload = censoredPayload[:200]
-	}
-
-	message.Payload = censoredPayload
+	message.Payload = preprocessedPayload
 	return true
 }
 

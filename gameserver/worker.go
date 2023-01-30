@@ -1,6 +1,7 @@
 package gameserver
 
 import (
+	"context"
 	"main/utils"
 )
 
@@ -23,10 +24,10 @@ func NewWorker(jobQueue *utils.ModifiableQueue[GameProcess]) *Worker {
 func (w *Worker) Start() {
 	for {
 		gameProcess := w.JobQueue.PopBlocking()
-
 		w.ActiveGame = true
-		gameProcess.PreGameHook()
-		gameProcess.MainGameProcessHook()
+		ctx, ctxCancel := context.WithCancel(context.Background())
+		gameProcess.PreGameHook(ctxCancel)
+		gameProcess.MainGameProcessHook(ctx)
 		gameProcess.PostGameHook()
 		w.ActiveGame = false
 	}

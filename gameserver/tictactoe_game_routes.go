@@ -1,19 +1,12 @@
 package gameserver
 
 import (
-	"fmt"
-	"main/chatmod"
 	"main/message"
+	"main/utils"
 )
-
-func (g *TicTacToeGame) TestRoute(m *message.Message) bool {
-	fmt.Println(m)
-	return true
-}
 
 func (g *TicTacToeGame) TrySetChar(m *message.Message) bool {
 	if g.CurrentPlayer.GetId() != m.Origin.GetId() {
-		fmt.Printf("unauthorized board edit attempt, current player is %s and not %s\n", g.CurrentPlayer.GetId(), m.Origin.GetId())
 		return false
 	}
 
@@ -41,27 +34,21 @@ func (g *TicTacToeGame) TrySetChar(m *message.Message) bool {
 		return false
 	}
 
-	g.moveDone <- true
+	g.unlockMove()
 	return false
 }
 
 // Run a Client Message through a censoring middleware and broadcast it to all players
 func (g *TicTacToeGame) BroadcastClientMessage(message *message.Message) bool {
-	defer func() {
-		if err := recover(); err != nil {
-			return // recover from bad client message
-		}
-	}()
-
-	censoredPayload, err := chatmod.CensorChatMesage(message.Payload.(string))
-	if err != nil {
+	preprocessedPayload, ok := utils.PreprocessChatPayload(message.Payload.(string))
+	if !ok {
 		return false
 	}
 
-	if len(censoredPayload) > 200 {
-		censoredPayload = censoredPayload[:200]
-	}
+	message.Payload = preprocessedPayload
+	return true
+}
 
-	message.Payload = censoredPayload
+func (g *TicTacToeGame) DumbForward(message *message.Message) bool {
 	return true
 }

@@ -2,8 +2,6 @@ package gameserver
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"main/client"
 	"main/message"
 	"net/http"
@@ -30,10 +28,10 @@ func NewGameServer(ctx context.Context) *GameServer {
 		ClientQueue:  client.NewClientQueue(1024),
 		GameQueue:    gameQueue,
 		EventManager: message.NewEventManager(message.NewOrigin(message.Server, nil)),
-		ExecutorPool: NewWorkerPool(ctx, &gameQueue.ModifiableQueue, 1), // TODO: default pool size to 512
+		ExecutorPool: NewWorkerPool(ctx, &gameQueue.ModifiableQueue, 512),
 	}
 
-	gs.InitNotificationRoutine(ctx, 10*time.Second)
+	gs.InitNotificationRoutine(ctx, 500*time.Millisecond)
 	r := gs.EventManager.Router
 
 	// client control messages
@@ -42,9 +40,6 @@ func NewGameServer(ctx context.Context) *GameServer {
 
 	// chat messages
 	r.Route(message.Client, message.Chat, gs.BroadcastClientMessage)
-
-	// debug messages
-	r.Route(message.Client, message.Debug, gs.PrintClientDebug)
 
 	// game server meta messages
 	r.Route(message.Server, message.GameServerMeta, gs.DumbForward)
@@ -63,7 +58,6 @@ func (gs *GameServer) ListenAndServe(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println(err)
 		return
 	}
 
@@ -87,7 +81,6 @@ func (gs *GameServer) InitNotificationRoutine(ctx context.Context, notificationF
 }
 
 func (gs *GameServer) ForgetClient(c *client.Client) {
-	fmt.Printf("game server forgetting client %s\n", c.GetId())
 	gs.Clients.Unregister(c)
 	gs.ClientQueue.Unregister(c)
 	gs.EventManager.UnsubscribeMessenger(c.Messenger)
