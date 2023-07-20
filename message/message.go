@@ -27,7 +27,10 @@ func NewMessage(type_ MessageType, payload interface{}) *Message {
 // Return a new Message object from given JSON encoded bytes
 func NewMessageFromBytes(bytes []byte) *Message {
 	message := new(Message)
-	message.Unmarshal(bytes)
+	err := message.Unmarshal(bytes)
+	if err != nil {
+		return nil
+	}
 	message.ID = *utils.NewId()
 	return message
 }
@@ -46,7 +49,7 @@ func (m *Message) SetForwardedBy(origin *Origin) {
 func (m *Message) Unmarshal(bytes []byte) error {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("hello")
+			fmt.Printf("received bad message: %s\n", string(bytes))
 		}
 	}()
 	return json.Unmarshal(bytes, m)
