@@ -9,6 +9,7 @@ import (
 type Message struct {
 	Id      string                 `json:"id,omitempty"`
 	Type    MessageType            `json:"type"`
+	Origin *Origin                 `json:"origin"`
 	Payload map[string]interface{} `json:"payload"`
 }
 
@@ -19,6 +20,19 @@ func NewMessage(type_ MessageType, payload map[string]interface{}) *Message {
 		Type:    type_,
 		Payload: payload,
 	}
+}
+
+// Return a new Message object
+func NewMessageFromBytes(bytes []byte) *Message {
+	message := new(Message)
+	message.Unmarshal(bytes)
+	message.Id = uuid.New().String()
+	return message
+}
+
+// Set message Origin
+func (m *Message) SetOrigin(origin *Origin) {
+	m.Origin = origin
 }
 
 // Unmarshal given JSON encoded bytes to this Message object
