@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	if false {
+	if os.Getenv("DEBUG") != "true" {
 		f, err := os.OpenFile("logfile.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
 			log.Fatalf("error opening file: %v", err)

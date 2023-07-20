@@ -1,0 +1,53 @@
+---
+# EVENT MANAGER:
+#   EVENT_MANAGER_TYPE:
+#     MESSAGE_DIRECTION:
+#       MESSAGE_TYPE:
+#         MESSAGE: {} # TODO?: SPECIFIC PAYLOAD # ?
+
+EVENT MANAGER:
+  GLOBAL:
+    INCOMING:
+      USER CONTROL:
+      - Enter Client Queue
+      - Exit Client Queue
+
+      # TODO?:
+      CHAT MESSAGE:
+      - User Message
+
+    OUTCOMING:
+      USER CONTROL:
+      - Game Found Notification
+
+      SERVER META:
+      - Server Health (no. Executors, no. active Games, no. Online Players (active, in-game))
+
+      # TODO?:
+      CHAT MESSAGE:
+      - User Message
+
+  LOCAL:
+    INCOMING:
+      GAME CONTROL:
+      - Game Surrender
+      - Game End (with status)
+
+      # TODO?:
+      CHAT MESSAGE:
+      - User Message
+
+    OUTCOMING:
+      ROUND STATUS:
+      - (Whose Round is ongoing, Round Timeout, Round Meta)
+
+      GAME CONTROL:
+      - Cancel Game (surrender)
+      - Game Won
+
+      USER CONTROL:
+      - Kicked for inactivity -> Game Surrender -> Game Won
+
+      # TODO?:
+      CHAT MESSAGE:
+      - User Message
