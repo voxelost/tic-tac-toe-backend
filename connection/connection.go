@@ -2,70 +2,91 @@ package connection
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"main/message"
+	"main/utils"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
 
+// Connection holds handles all communication with the remote client
 type Connection struct {
-	Conn                   *websocket.Conn
-	MessageReceiveCallback func(*message.Message)
-	SendMessage            func(*message.Message)
-	CancelCallback         func()
+	sync.Mutex     // for ws writes
+	CancelCallback func()
+
+	conn                   *websocket.Conn
+	clientId               utils.ID
+	messageReceiveCallback func(*message.Message)
 }
 
-func NewConnection(ctx context.Context, conn *websocket.Conn, messageReceive func(*message.Message), cancelCallback func()) *Connection {
+// Return a new Connection
+func NewConnection(ctx context.Context, clientId utils.ID, conn *websocket.Conn, messageReceive func(*message.Message), cancelCallback func()) *Connection {
 	c := &Connection{
-		Conn:                   conn,
-		MessageReceiveCallback: messageReceive,
-		CancelCallback:         cancelCallback,
+		conn:           conn,
+		CancelCallback: cancelCallback,
+
+		clientId:               clientId,
+		messageReceiveCallback: messageReceive,
 	}
 
-	c.SendMessage = c.WebsocketWriteRoutine
-
 	go c.WebsocketReadRoutine(ctx)
-
 	return c
 }
 
 // Run a routine that reads messages from websocket and pushes them into ConnIn channel
 func (c *Connection) WebsocketReadRoutine(ctx context.Context) {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println("recovering from Connection error:", err)
+			c.Cancel()
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			messageType, p, err := c.Conn.ReadMessage()
+			messageType, p, err := c.conn.ReadMessage()
 			if err != nil {
-				switch err.(type) {
-				case *websocket.CloseError:
-					c.CancelCallback()
-					return
-				default:
-					c.CancelCallback()
-					return
-				}
+				c.Cancel()
+				return
 			}
 
 			switch messageType {
 			case websocket.TextMessage:
-				c.MessageReceiveCallback(message.NewMessageFromBytes(p))
-			case websocket.CloseMessage:
-				c.CancelCallback()
-				return
+				c.messageReceiveCallback(message.NewMessageFromBytes(p))
 			default:
-				continue
+				c.Cancel()
+				return
 			}
 		}
 	}
 }
 
-// Write to websocket
-func (c *Connection) WebsocketWriteRoutine(message *message.Message) {
+// Write a marshalled Message to websocket
+func (c *Connection) SendMessage(message *message.Message) {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println("recovering from Connection error:", err)
+			c.Cancel()
+		}
+	}()
+
+	message.RecipientId = &c.clientId
 	messageBytes, _ := message.Marshal()
-	if err := c.Conn.WriteMessage(websocket.TextMessage, messageBytes); err != nil {
-		log.Println(err)
-		return
+	c.Lock()
+	defer c.Unlock()
+
+	if err := c.conn.WriteMessage(websocket.TextMessage, messageBytes); err != nil {
+		c.Cancel()
+	}
+}
+
+func (c *Connection) Cancel() {
+	if c.CancelCallback != nil {
+		c.CancelCallback()
+		c.CancelCallback = nil
 	}
 }

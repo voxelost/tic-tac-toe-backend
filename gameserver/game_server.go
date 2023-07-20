@@ -2,10 +2,12 @@ package gameserver
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"main/client"
 	"main/message"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -13,6 +15,7 @@ import (
 // GameServer struct represents a game server responsible for registering new clients, handling global EventManager
 // events and controlling Clients
 type GameServer struct {
+	Clients      *client.ClientCache
 	ClientQueue  *client.ClientQueue
 	GameQueue    *GameQueue
 	EventManager *message.EventManager
@@ -21,31 +24,66 @@ type GameServer struct {
 
 // Return new GameServer
 func NewGameServer(ctx context.Context) *GameServer {
-	gameQueue := NewGameQueue()
-	return &GameServer{
-		ClientQueue:  client.NewClientQueue(),
+	gameQueue := NewGameQueue(1024)
+	gs := &GameServer{
+		Clients:      client.NewClientCache(),
+		ClientQueue:  client.NewClientQueue(1024),
 		GameQueue:    gameQueue,
-		EventManager: message.NewEventManager(),
-		ExecutorPool: NewWorkerPool(ctx, gameQueue.Queue, 10), // TODO: default pool size to 512
+		EventManager: message.NewEventManager(message.NewOrigin(message.Server, nil)),
+		ExecutorPool: NewWorkerPool(ctx, &gameQueue.ModifiableQueue, 1), // TODO: default pool size to 512
 	}
-}
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
+	gs.InitNotificationRoutine(ctx, 10*time.Second)
+	r := gs.EventManager.Router
+
+	// client control messages
+	r.Route(message.Client, message.RegisterForClientQueue, gs.RegisterForClientQueue)
+	r.Route(message.Client, message.UnregisterFromClientQueue, gs.UnregisterFromClientQueue)
+
+	// chat messages
+	r.Route(message.Client, message.Chat, gs.BroadcastClientMessage)
+
+	// debug messages
+	r.Route(message.Client, message.Debug, gs.PrintClientDebug)
+	r.Route(message.Server, message.Debug, gs.DumbForward)
+	return gs
 }
 
 // handle new users and put them in queue,
 func (gs *GameServer) ListenAndServe(w http.ResponseWriter, r *http.Request) {
+	var upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	client := client.NewClient(context.Background(), conn)
+	client := client.NewClient(context.Background(), conn, gs.ForgetClient)
 	gs.EventManager.SubscribeMessenger(client.Messenger)
-	gs.ClientQueue.RegisterClient(client)
-	// todo: don't force game registration, trigger this when users explicitly request a game
-	gs.GameQueue.TryRegisterGame(context.Background(), gs.ClientQueue)
+	gs.Clients.Register(client)
+}
+
+func (gs *GameServer) InitNotificationRoutine(ctx context.Context, notificationFrequency time.Duration) {
+	go func() {
+		for {
+			time.Sleep(notificationFrequency)
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				gs.SendNotifications()
+			}
+		}
+	}()
+}
+
+func (gs *GameServer) ForgetClient(c *client.Client) {
+	fmt.Printf("game server forgetting client %s\n", c.GetId())
+	gs.Clients.Unregister(c)
+	gs.ClientQueue.Unregister(c)
+	gs.EventManager.UnsubscribeMessenger(c.Messenger)
 }

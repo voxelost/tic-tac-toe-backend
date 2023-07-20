@@ -1,60 +1,68 @@
 package client
 
 import (
-	"sync"
+	"main/utils"
 )
 
 // ClientQueue is the queue of players waiting for a game
 type ClientQueue struct {
-	sync.Mutex
-	Queue chan *Client
+	*utils.ModifiableQueue[*Client]
 }
 
 // Return new ClientQueue
-func NewClientQueue() *ClientQueue {
+func NewClientQueue(queueSize int) *ClientQueue {
 	return &ClientQueue{
-		Queue: make(chan *Client, 4096),
+		ModifiableQueue: utils.NewModifiableQueue[*Client](queueSize),
 	}
 }
 
 // Register a Client as waiting for Game
-func (cq *ClientQueue) RegisterClient(c *Client) {
-	cq.Lock()
-	defer cq.Unlock()
-	cq.Queue <- c
+func (cq *ClientQueue) Register(c *Client) {
+	cq.Push(c)
+}
+
+// Unregister a Client from the ClientQueue
+func (cq *ClientQueue) Unregister(c *Client) {
+	cq.Delete(c.GetId())
 }
 
 // Remove all clients that are no longer valid.
-// WARNING: this method does not lock ClientQueue and needs to be run within a context that does
 func (cq *ClientQueue) GarbageCollect() {
-	clients := []*Client{}
-
-	for len(cq.Queue) > 0 {
-		client := <-cq.Queue
-		if client.Valid {
-			clients = append(clients, client)
+	clientIds := cq.GetIds()
+	idsToDelete := []utils.ID{}
+	for _, id := range clientIds {
+		c := cq.Get(id)
+		if !c.Valid {
+			idsToDelete = append(idsToDelete, id)
 		}
 	}
 
-	for _, client := range clients {
-		cq.Queue <- client
-	}
+	cq.RemoveMultiple(idsToDelete)
 }
 
 // Lock Game Queue, try to gather N clients and return them. return ok=false if queue doesn't have enough clients
 func (cq *ClientQueue) GetNClients(n int) (clients []*Client, ok bool) {
+	cq.GarbageCollect()
+
 	cq.Lock()
 	defer cq.Unlock()
-	cq.GarbageCollect()
-	if len(cq.Queue) >= n {
-		clients = []*Client{}
-		for i := 0; i < n; i++ {
-			newClient := <-cq.Queue
-			clients = append(clients, newClient)
-		}
 
-		return clients, true
+	if cq.Len() < n {
+		return clients, false
 	}
 
-	return clients, false
+	for i := 0; i < n; i++ {
+		client, ok := cq.PopNonBlocking()
+		if !ok {
+			for _, client_ := range clients {
+				cq.Push(client_)
+			}
+
+			return []*Client{}, false
+		}
+
+		clients = append(clients, client)
+	}
+
+	return clients, true
 }
