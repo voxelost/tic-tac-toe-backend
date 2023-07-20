@@ -1,4 +1,4 @@
-package main
+package status
 
 type GameStatus string
 
@@ -8,5 +8,6 @@ var (
 	Started            = GameStatus("started")
 	InProgress         = GameStatus("in_progress")
 	ShuttingDown       = GameStatus("shutting_down")
+	Finished           = GameStatus("finished")
 	Cancelled          = GameStatus("cancelled")
 )

@@ -1,8 +1,6 @@
-package main
+package gameserver
 
 import (
-	"context"
-
 	"github.com/google/uuid"
 )
 
@@ -21,16 +19,11 @@ func NewWorker(jobQueue JobQueue) *Worker {
 }
 
 // Start Worker process. The worker will take Jobs from the JobQueue and run them
-func (w *Worker) Start(ctx context.Context) {
+func (w *Worker) Start() {
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			gameProcess := <-w.JobQueue
-			gameProcess.PreGameHook()
-			gameProcess.MainGameProcessHook()
-			gameProcess.PostGameHook()
-		}
+		gameProcess := <-w.JobQueue
+		gameProcess.PreGameHook()
+		gameProcess.MainGameProcessHook()
+		gameProcess.PostGameHook()
 	}
 }
