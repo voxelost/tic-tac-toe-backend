@@ -2,7 +2,6 @@ package gameserver
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"main/chatmod"
 	"main/message"
@@ -24,17 +23,18 @@ func (gs *GameServer) DumbForward(message *message.Message) bool {
 
 // Run a Client Message through a censoring middleware and broadcast it to all players
 func (gs *GameServer) BroadcastClientMessage(message *message.Message) bool {
-	payloadBytes, err := json.Marshal(message.Payload)
+	defer func() {
+		if err := recover(); err != nil {
+			return // recover from bad client message
+		}
+	}()
+
+	censoredPayload, err := chatmod.CensorChatMesage(message.Payload.(string))
 	if err != nil {
 		return false
 	}
 
-	censoredPayload, err := chatmod.CensorChatMesage(string(payloadBytes))
-	if err != nil {
-		return false
-	}
-
-	if len(payloadBytes) > 200 {
+	if len(censoredPayload) > 200 {
 		censoredPayload = censoredPayload[:200]
 	}
 
