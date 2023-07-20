@@ -95,7 +95,8 @@ func (mq *ModifiableQueue[T]) RemoveMultiple(Ids []ID) {
 			}
 		}
 
-		if shouldPreserve {
+		_, exists := mq.mappings[id_]
+		if shouldPreserve && exists {
 			idsToPreserve = append(idsToPreserve, id_)
 		} else {
 			delete(mq.mappings, id_)

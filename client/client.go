@@ -5,6 +5,7 @@ import (
 	"main/connection"
 	"main/message"
 	"main/utils"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
@@ -13,6 +14,7 @@ import (
 type Client struct {
 	*message.Messenger
 	utils.ID
+	sync.Mutex
 
 	CancelGame       func()
 	RemoveFromServer func()
@@ -28,7 +30,7 @@ func NewClient(ctx context.Context, conn *websocket.Conn, destroy func(*Client))
 		Valid: true,
 	}
 
-	c.Messenger = message.NewMessenger()
+	c.Messenger = message.NewMessenger(c.GetId())
 	c.Messenger.SetEventManagerReceiveCallback(c.ReceiveEventManagerMessage)
 
 	c.RemoveFromServer = func() { destroy(c) }
@@ -38,7 +40,12 @@ func NewClient(ctx context.Context, conn *websocket.Conn, destroy func(*Client))
 
 // Receive a message from EventManager
 func (c *Client) ReceiveEventManagerMessage(message_ *message.Message) {
-	c.connection.SendMessage(message_) // forward to remote Client
+	c.Lock()
+	defer c.Unlock()
+
+	if c.Valid {
+		c.connection.SendMessage(message_) // forward to remote Client
+	}
 }
 
 // Receive a connection from remote client
@@ -54,8 +61,11 @@ func (c *Client) ReceiveConnectionMessage(message_ *message.Message) {
 
 // Invalidate a client. Calls to this function have to be idempotent
 func (c *Client) Invalidate() {
-	c.Destroy()
+	c.Lock()
+	defer c.Unlock()
+
 	c.Valid = false
+	c.Destroy()
 }
 
 // Destroy a client. If they are in a game, cancel that game. Calls to this functions are idempotent

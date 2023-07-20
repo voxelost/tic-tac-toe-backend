@@ -1,7 +1,6 @@
 package message
 
 import (
-	"fmt"
 	"main/utils"
 )
 
@@ -13,9 +12,9 @@ type Messenger struct {
 }
 
 // Return a new Messenger object
-func NewMessenger() *Messenger {
+func NewMessenger(id utils.ID) *Messenger {
 	return &Messenger{
-		ID: *utils.NewId(),
+		ID: id,
 	}
 }
 
@@ -44,7 +43,6 @@ func (m *Messenger) PopCommunicator() {
 func (m *Messenger) UnsubFromAllEventManagers() {
 	for len(m.communicators) > 0 {
 		m.PopCommunicator()
-		fmt.Printf("messenger %s popping communicator\n", m.GetId())
 	}
 }
 

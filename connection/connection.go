@@ -2,7 +2,6 @@ package connection
 
 import (
 	"context"
-	"fmt"
 	"main/message"
 	"main/utils"
 	"sync"
@@ -12,11 +11,11 @@ import (
 
 // Connection holds handles all communication with the remote client
 type Connection struct {
-	sync.Mutex     // for ws writes
+	sync.Mutex // for ws writes
+	utils.ID
 	CancelCallback func()
 
 	conn                   *websocket.Conn
-	clientId               utils.ID
 	messageReceiveCallback func(*message.Message)
 }
 
@@ -25,8 +24,8 @@ func NewConnection(ctx context.Context, clientId utils.ID, conn *websocket.Conn,
 	c := &Connection{
 		conn:           conn,
 		CancelCallback: cancelCallback,
+		ID:             clientId,
 
-		clientId:               clientId,
 		messageReceiveCallback: messageReceive,
 	}
 
@@ -38,7 +37,6 @@ func NewConnection(ctx context.Context, clientId utils.ID, conn *websocket.Conn,
 func (c *Connection) WebsocketReadRoutine(ctx context.Context) {
 	defer func() {
 		if err := recover(); err != nil {
-			fmt.Println("recovering from Connection error:", err)
 			c.Cancel()
 		}
 	}()
@@ -69,15 +67,14 @@ func (c *Connection) WebsocketReadRoutine(ctx context.Context) {
 func (c *Connection) SendMessage(message *message.Message) {
 	defer func() {
 		if err := recover(); err != nil {
-			fmt.Println("recovering from Connection error:", err)
 			c.Cancel()
 		}
 	}()
-
-	message.RecipientId = &c.clientId
-	messageBytes, _ := message.Marshal()
 	c.Lock()
 	defer c.Unlock()
+
+	message.RecipientId = c.GetId()
+	messageBytes, _ := message.Marshal()
 
 	if err := c.conn.WriteMessage(websocket.TextMessage, messageBytes); err != nil {
 		c.Cancel()
@@ -85,6 +82,9 @@ func (c *Connection) SendMessage(message *message.Message) {
 }
 
 func (c *Connection) Cancel() {
+	c.Lock()
+	defer c.Unlock()
+
 	if c.CancelCallback != nil {
 		c.CancelCallback()
 		c.CancelCallback = nil

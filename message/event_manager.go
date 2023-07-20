@@ -60,12 +60,15 @@ func (em *EventManager) Publish(message *Message) {
 	if message.Origin == nil {
 		return
 	}
+	em.Lock()
+	defer em.Unlock()
 
-	message.EventManagerOrigin = em.Origin
+	message.EventManagerOrigin = em.Origin // messages will always be sent from a single Event Manager only
+	msgCopy := *message
 
-	for _, messenger := range em.Subscribers {
-		if messenger.ReceiveFromEventManager != nil {
-			messenger.ReceiveFromEventManager(message)
+	for _, subscriber := range em.Subscribers {
+		if subscriber.ReceiveFromEventManager != nil {
+			subscriber.ReceiveFromEventManager(&msgCopy)
 		}
 	}
 }

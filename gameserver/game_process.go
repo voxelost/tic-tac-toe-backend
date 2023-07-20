@@ -1,10 +1,13 @@
 package gameserver
 
-import "main/utils"
+import (
+	"context"
+	"main/utils"
+)
 
 type GameProcess interface {
 	GetId() utils.ID
-	PreGameHook()
-	MainGameProcessHook()
+	PreGameHook(context.CancelFunc)
+	MainGameProcessHook(context.Context)
 	PostGameHook()
 }

@@ -2,11 +2,9 @@ package gameserver
 
 import (
 	"context"
-	"fmt"
 	"main/client"
 	"main/message"
 	"main/status"
-	"strings"
 )
 
 var (
@@ -36,7 +34,9 @@ type TicTacToeGame struct {
 	Round         int
 	BoardStates   []TicTacToeBoard
 
-	moveDone chan bool // a channel for blocking the main game loop until a player makes a correct move
+	unlockMove context.CancelFunc
+	cancelGame context.CancelFunc
+	// moveDone sync.Mutex // a lock for blocking the main game loop until a player makes a correct move
 }
 
 // Return a new TicTacToeGame object
@@ -46,11 +46,9 @@ func NewTicTacToeGame(ctx context.Context, clients []*client.Client) *TicTacToeG
 	}
 
 	g := &TicTacToeGame{
+		GameBase:    *NewGameBase(ctx, clients),
 		BoardStates: []TicTacToeBoard{*NewTicTacToeBoard()},
-		moveDone:    make(chan bool),
 	}
-
-	g.GameBase = *NewGameBase(ctx, clients)
 
 	for _, client := range g.Players {
 		// setup CancelGame hooks
@@ -63,10 +61,13 @@ func NewTicTacToeGame(ctx context.Context, clients []*client.Client) *TicTacToeG
 	r := g.EventManager.Router
 
 	// debug
-	r.Route(message.Game, message.Debug, g.TestRoute)
+	r.Route(message.Game, message.Debug, g.DumbForward)
 
 	// game control
 	r.Route(message.Client, message.GameAction, g.TrySetChar)
+	r.Route(message.Game, message.GameState, g.DumbForward)
+	r.Route(message.Game, message.GameMeta, g.DumbForward)
+	r.Route(message.Game, message.GameStatusUpdate, g.DumbForward)
 
 	// chat
 	r.Route(message.Client, message.Chat, g.BroadcastClientMessage)
@@ -76,47 +77,51 @@ func NewTicTacToeGame(ctx context.Context, clients []*client.Client) *TicTacToeG
 }
 
 // Pre tictactoe game hook
-func (g *TicTacToeGame) PreGameHook() {
+func (g *TicTacToeGame) PreGameHook(cancelGame context.CancelFunc) {
+	g.cancelGame = cancelGame
 	g.UpdateStatus(status.Starting)
 	g.Players[0].Payload["game_char"] = CharO
 	g.Players[1].Payload["game_char"] = CharX
 
-	clientNames := []string{}
-	for _, client := range g.Players {
-		clientNames = append(clientNames, fmt.Sprintf("[%s] - [%s]", client.GetId(), client.Payload))
-	}
-
 	g.UpdateStatus(status.Started)
-	g.BroadcastMessagef("the players are:\n%s", strings.Join(clientNames, "\n"))
+	g.BroadcastMessage(message.NewMessage(message.GameMeta, map[string]string{
+		string(g.Players[0].GetId()): CharO,
+		string(g.Players[1].GetId()): CharX,
+	}))
 }
 
 // Main tictactoe game loop
-func (g *TicTacToeGame) MainGameProcessHook() {
+func (g *TicTacToeGame) MainGameProcessHook(_ctx context.Context) {
 	for {
-		g.NextRound()
-		g.BroadcastGameState()
+		select {
+		case <-_ctx.Done():
+			return
+		default:
+			g.NextRound()
+			g.BroadcastGameState()
 
-		if g.CheckWin(g.CurrentPlayer.Payload["game_char"]) {
-			break
-		}
+			ctx, cancelCtx := context.WithCancel(_ctx)
+			g.unlockMove = cancelCtx
+			g.LockUntilMoveDone(ctx)
 
-		g.LockUntilMoveDone()
-
-		if g.CheckFinished() {
-			break
+			if g.CheckWin(g.CurrentPlayer.Payload["game_char"]) {
+				g.BroadcastGameState()
+				return
+			}
 		}
 	}
-
-	g.BroadcastMessagef("PLAYER %s [%s] WON", g.CurrentPlayer.GetId(), g.CurrentPlayer.Payload["game_char"])
-	g.UpdateStatus(status.Finished)
 }
 
 // Post tictactoe game hook
 func (g *TicTacToeGame) PostGameHook() {
-	g.BroadcastMessagef("game has ended")
-	g.UpdateStatus(status.ShuttingDown)
-	g.BroadcastMessagef("game instance is shutting down...")
+	victoryStatus := status.VictoryO
+	if g.CurrentPlayer.Payload["game_char"] == CharX && g.CurrentPlayer.Valid {
+		victoryStatus = status.VictoryX
+	}
 
+	g.UpdateStatus(victoryStatus)
+	g.UpdateStatus(status.Finished)
+	g.UpdateStatus(status.ShuttingDown)
 	g.Destroy()
 }
 
@@ -133,17 +138,14 @@ func (g *TicTacToeGame) GetLastState() *TicTacToeBoard {
 
 // Cancel the current game
 func (g *TicTacToeGame) Cancel() {
-	for len(g.moveDone) > 0 {
-		<-g.moveDone
-	} // flush chan
-	g.moveDone <- false // unlock main process
-	g.UpdateStatus(status.Cancelled)
+	g.Status = status.Cancelled
+	g.cancelGame()
 	g.Destroy()
 }
 
 // Block until a value is present in the moveDone channel
-func (g *TicTacToeGame) LockUntilMoveDone() {
-	<-g.moveDone
+func (g *TicTacToeGame) LockUntilMoveDone(ctx context.Context) {
+	<-ctx.Done()
 }
 
 // Run GameBase.Destroy and cancel own context
@@ -169,7 +171,7 @@ func (g *TicTacToeGame) PutChar(y, x int, c string) (ok bool) {
 }
 
 func (g *TicTacToeGame) BroadcastGameState() {
-	message := message.NewMessage(message.Debug, map[string]interface{}{
+	message := message.NewMessage(message.GameState, map[string]interface{}{
 		"round":          g.Round,
 		"current_player": g.CurrentPlayer.GetId(),
 		"board":          g.GetLastState(),

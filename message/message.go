@@ -2,13 +2,12 @@ package message
 
 import (
 	"encoding/json"
-	"fmt"
 	"main/utils"
 )
 
 type Message struct {
 	utils.ID           `json:"id,omitempty"`
-	RecipientId        *utils.ID   `json:"recipient_id,omitempty"`
+	RecipientId        utils.ID    `json:"recipient_id,omitempty"`
 	Type               MessageType `json:"type"`
 	Origin             *Origin     `json:"origin,omitempty"`
 	EventManagerOrigin *Origin     `json:"event_manager_origin,omitempty"`
@@ -40,18 +39,15 @@ func (m *Message) SetOrigin(origin *Origin) {
 	m.Origin = origin
 }
 
-// Set message ForwardedBy
-func (m *Message) SetForwardedBy(origin *Origin) {
+// Set message EventManagerOrigin
+func (m *Message) SetEventManagerOrigin(origin *Origin) {
 	m.EventManagerOrigin = origin
 }
 
 // Unmarshal given JSON encoded bytes to this Message object
 func (m *Message) Unmarshal(bytes []byte) error {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Printf("received bad message: %s\n", string(bytes))
-		}
-	}()
+	defer recover()
+
 	return json.Unmarshal(bytes, m)
 }
 

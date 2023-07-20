@@ -2,26 +2,11 @@ package main
 
 import (
 	"context"
-	"log"
 	"main/gameserver"
 	"net/http"
-	"os"
 
 	"github.com/gorilla/handlers"
 )
-
-func init() {
-	if os.Getenv("DEBUG") != "true" {
-		f, err := os.OpenFile("logfile.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-		if err != nil {
-			log.Fatalf("error opening file: %v", err)
-			return
-		}
-		defer f.Close()
-
-		log.SetOutput(f)
-	}
-}
 
 func main() {
 	GameServer := gameserver.NewGameServer(context.Background())
