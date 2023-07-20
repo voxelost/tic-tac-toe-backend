@@ -9,7 +9,7 @@ import (
 type Message struct {
 	Id      string                 `json:"id,omitempty"`
 	Type    MessageType            `json:"type"`
-	Origin *Origin                 `json:"origin"`
+	Origin  *Origin                `json:"origin"`
 	Payload map[string]interface{} `json:"payload"`
 }
 
