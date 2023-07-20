@@ -45,7 +45,9 @@ func NewGameServer(ctx context.Context) *GameServer {
 
 	// debug messages
 	r.Route(message.Client, message.Debug, gs.PrintClientDebug)
-	r.Route(message.Server, message.Debug, gs.DumbForward)
+
+	// game server meta messages
+	r.Route(message.Server, message.GameServerMeta, gs.DumbForward)
 	return gs
 }
 

@@ -21,7 +21,7 @@ func (gs *GameServer) NewServerStatus() *ServerStatus {
 }
 
 func (gs *GameServer) SendNotifications() {
-	gs.BroadcastMessage(message.NewMessage(message.Debug, gs.NewServerStatus()))
+	gs.BroadcastMessage(message.NewMessage(message.GameServerMeta, gs.NewServerStatus()))
 }
 
 func (gs *GameServer) BroadcastMessage(message_ *message.Message) {
